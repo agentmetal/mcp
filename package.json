@@ -1,10 +1,10 @@
 {
   "name": "@agentmetal/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for AgentMetal — let an AI agent discover, pay for (USDC via x402 or card), provision, and manage Linux VPSes over HTTP 402. No signup.",
   "license": "MIT",
   "type": "module",
-  "mcpName": "io.github.agentmetal/agentmetal",
+  "mcpName": "dev.agentmetal/agentmetal",
   "bin": {
     "agentmetal-mcp": "src/index.ts"
   },
