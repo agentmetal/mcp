@@ -4,6 +4,8 @@ MCP server that exposes [AgentMetal](https://agentmetal.dev) as tools, so an age
 **discover → pay → provision → renew** a server with no human signup. Paid tools sign
 USDC payments over [x402 v2](https://x402.org); the rest are plain HTTP.
 
+[![agentmetal/mcp MCP server](https://glama.ai/mcp/servers/agentmetal/mcp/badges/score.svg)](https://glama.ai/mcp/servers/agentmetal/mcp)
+
 ## Tools
 
 | Tool | Pays? | What it does |
