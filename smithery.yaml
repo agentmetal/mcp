@@ -1,0 +1,32 @@
+# Smithery configuration — https://smithery.ai/docs
+# Local stdio server: Smithery runs `npx -y @agentmetal/mcp` on the user's machine.
+# Requires Node >= 24 (the server runs TypeScript directly; see package.json "engines").
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: []
+    properties:
+      walletPrivateKey:
+        type: string
+        description: "0x… EVM private key used to sign USDC x402 payments on Base. Omit to use only the free browse/discovery tools (get_catalog, get_server, list_servers)."
+      agentmetalApiKey:
+        type: string
+        description: "am_live_… account key (from /v1/claim) for reboot, diagnostics, exec, early destroy, and fleet management."
+      maxUsdc:
+        type: string
+        description: "Per-request USDC spend cap; a 402 above this is refused before signing (default 50)."
+      baseUrl:
+        type: string
+        description: "API base URL (default https://api.agentmetal.dev)."
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', '@agentmetal/mcp'],
+      env: Object.fromEntries(Object.entries({
+        WALLET_PRIVATE_KEY: config.walletPrivateKey,
+        AGENTMETAL_API_KEY: config.agentmetalApiKey,
+        AGENTMETAL_MAX_USDC: config.maxUsdc,
+        AGENTMETAL_BASE_URL: config.baseUrl,
+      }).filter(([, v]) => v))
+    })
