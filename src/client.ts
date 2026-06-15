@@ -28,6 +28,34 @@ export interface Server {
   expires_at: string;
   renew: string;
   payment?: { amount_atomic: string; tx_hash?: string };
+  /** Present ONCE on provision with managed_key:true — the managed private key, shown only here. */
+  ssh_private_key?: string;
+}
+
+/** The result of running a command on a server via exec. */
+export interface ExecResult {
+  exit_code: number | null;
+  stdout: string;
+  stderr: string;
+  timed_out: boolean;
+}
+
+/** The public catalog: plans, offered locations, and add-on pricing. */
+export interface Catalog {
+  plans: { id: string; vcpu: number; memory_gb: number; disk_gb: number; usd_per_day: string; usd_per_month: number }[];
+  locations: { code: string; city: string; country: string }[];
+  bandwidth: { included_tb: number; extra_usd_per_tb: string };
+  storage: { usd_per_gb_day: string; min_gb: number; max_gb: number };
+}
+
+/** Hypervisor-level diagnostics: recent actions, a VNC console, and live metrics. */
+export interface Diagnostics {
+  id: string;
+  status: string;
+  ipv4: string | null;
+  recent_actions: { command: string; status: string; progress: number; error: string | null }[];
+  console: { wss_url: string; password: string } | null;
+  metrics: Record<string, number | null>;
 }
 
 export interface ProvisionInput {
@@ -35,6 +63,8 @@ export interface ProvisionInput {
   days: number;
   /** SSH public key to authorize on the box. */
   sshKey?: string;
+  /** Generate a server-side keypair, authorize it, and return the private key once (enables exec). */
+  managedKey?: boolean;
   /** Free-form attribution tag (e.g. the calling skill/agent). */
   via?: string;
 }
@@ -75,6 +105,7 @@ export class AgentMetalClient {
   async provision(input: ProvisionInput): Promise<Server> {
     const body: Record<string, unknown> = { plan: input.plan, days: input.days };
     if (input.sshKey) body.ssh_key = input.sshKey;
+    if (input.managedKey) body.managed_key = true;
     if (input.via) body.via = input.via;
     const res = await this.#payFetch(`${this.#baseUrl}/v1/servers`, {
       method: 'POST',
@@ -93,6 +124,44 @@ export class AgentMetalClient {
     const res = await this.#fetch(`${this.#baseUrl}/v1/servers${q}`, { headers: this.#headers() });
     const data = await this.#parse<{ servers: Server[] }>(res);
     return data.servers;
+  }
+
+  /** Fetch the public catalog: plans, locations, and add-on pricing. Free — no auth, no payment. */
+  async getCatalog(): Promise<Catalog> {
+    const res = await this.#fetch(`${this.#baseUrl}/v1/catalog`, { headers: this.#headers() });
+    return this.#parse<Catalog>(res);
+  }
+
+  /** Soft-reboot a server. Requires an account API key (set via config.apiKey). */
+  async reboot(id: string): Promise<{ id: string; status: string }> {
+    const res = await this.#fetch(`${this.#baseUrl}/v1/servers/${encodeURIComponent(id)}/reboot`, {
+      method: 'POST',
+      headers: this.#headers(),
+    });
+    return this.#parse<{ id: string; status: string }>(res);
+  }
+
+  /**
+   * Run a command as root on a managed-key server via SSH. Requires an account API key
+   * (config.apiKey) and a server provisioned with managed_key:true. Bounded by `timeoutSeconds`.
+   */
+  async exec(id: string, command: string, timeoutSeconds?: number): Promise<ExecResult> {
+    const body: Record<string, unknown> = { command };
+    if (timeoutSeconds !== undefined) body.timeout_seconds = timeoutSeconds;
+    const res = await this.#fetch(`${this.#baseUrl}/v1/servers/${encodeURIComponent(id)}/exec`, {
+      method: 'POST',
+      headers: this.#headers(),
+      body: JSON.stringify(body),
+    });
+    return this.#parse<ExecResult>(res);
+  }
+
+  /** Hypervisor-level diagnostics for a server. Requires an account API key (set via config.apiKey). */
+  async diagnostics(id: string): Promise<Diagnostics> {
+    const res = await this.#fetch(`${this.#baseUrl}/v1/servers/${encodeURIComponent(id)}/diagnostics`, {
+      headers: this.#headers(),
+    });
+    return this.#parse<Diagnostics>(res);
   }
 
   /** Fetch a server's current status. */

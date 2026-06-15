@@ -64,7 +64,7 @@ const fail = (err: unknown) => ({
   isError: true,
 });
 
-const server = new McpServer({ name: 'agentmetal', version: '0.1.2' });
+const server = new McpServer({ name: 'agentmetal', version: '0.2.0' });
 
 server.registerTool(
   'provision_server',
@@ -82,6 +82,7 @@ server.registerTool(
       plan: z.enum(['nano', 'small', 'medium']).describe('Server size / price tier: "nano" (smallest, cheapest), "small", or "medium". Choose the smallest that fits the workload.'),
       days: z.number().int().min(1).max(30).describe('Lease length in whole days (1–30). The server auto-destroys at expiry unless extended; you pay up front for the whole lease.'),
       ssh_key: z.string().optional().describe('Optional single-line OpenSSH public key (e.g. "ssh-ed25519 AAAA…") authorized for root SSH. Omit and the box has NO inbound SSH access.'),
+      managed_key: z.boolean().optional().describe('Generate a server-side SSH keypair, authorize it on the box, and return the private key ONCE; enables exec_command. Stored only encrypted server-side.'),
       via: z.string().optional().describe('Optional attribution tag (e.g. the calling skill name). Analytics only; does not affect provisioning.'),
     },
   },
@@ -89,6 +90,7 @@ server.registerTool(
     try {
       const input: Parameters<AgentMetalClient['provision']>[0] = { plan: args.plan, days: args.days };
       if (args.ssh_key) input.sshKey = args.ssh_key;
+      if (args.managed_key) input.managedKey = true;
       if (args.via) input.via = args.via;
       return ok(await client.provision(input));
     } catch (err) {
@@ -176,6 +178,94 @@ server.registerTool(
   async (args) => {
     try {
       return ok(await client.destroy(args.id));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  'get_catalog',
+  {
+    title: 'List plans, locations, and pricing',
+    description:
+      'List available server plans (size + price), the regions servers can run in, and add-on pricing for ' +
+      'bandwidth and storage. FREE — read-only, charges no money and needs no wallet or account. Call this ' +
+      'FIRST to see what sizes, regions, and prices are on offer before provisioning a server.',
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      return ok(await client.getCatalog());
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  'reboot_server',
+  {
+    title: 'Reboot a server',
+    description:
+      'Soft-reboot a server (graceful ACPI restart) without destroying it or losing data. Use to recover a ' +
+      'box that has become unresponsive or to apply changes that need a restart. Requires an account API key ' +
+      '(AGENTMETAL_API_KEY) and ownership of the server; without one this returns an auth error. Does not ' +
+      'charge money. Returns immediately with status "rebooting"; the box is back in well under a minute.',
+    inputSchema: { id: z.string().describe('Server id to reboot, e.g. "srv_abc123".') },
+  },
+  async (args) => {
+    try {
+      return ok(await client.reboot(args.id));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  'exec_command',
+  {
+    title: 'Run a command on a server',
+    description:
+      'Run a single shell command as ROOT on a server over SSH and get back its exit code, stdout, and ' +
+      'stderr. Requires (1) an account API key (AGENTMETAL_API_KEY) AND ownership of the server, and (2) a ' +
+      'server provisioned with managed_key:true — the only way the API holds a key it can log in with; a box ' +
+      'created without managed_key returns "no_managed_key". The command runs in a non-interactive shell with ' +
+      'no TTY, so avoid prompts; chain steps with && or ;. Execution is bounded by `timeout_seconds` (1–120, ' +
+      'default 60); if it overruns, the process is killed and `timed_out` is true. Output is capped at 256 KB ' +
+      'per stream. Use to install packages, run scripts, or inspect a box you own without opening your own SSH session.',
+    inputSchema: {
+      id: z.string().describe('Server id to run the command on, e.g. "srv_abc123". Must be a running, managed-key server you own.'),
+      command: z.string().min(1).max(4096).describe('The shell command to run as root (non-empty, ≤4096 chars). Runs non-interactively; chain steps with && or ;.'),
+      timeout_seconds: z.number().int().min(1).max(120).optional().describe('Max seconds to wait before the command is killed (1–120, default 60). On overrun, timed_out is true.'),
+    },
+  },
+  async (args) => {
+    try {
+      return ok(await client.exec(args.id, args.command, args.timeout_seconds));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  'server_logs',
+  {
+    title: 'Server diagnostics (hypervisor-level)',
+    description:
+      'Hypervisor-level diagnostics for a server WITHOUT logging into it: current status, recent provider ' +
+      'actions (with any error messages), a VNC console URL + one-time password, and live CPU / disk / ' +
+      'network metrics. Use to diagnose a stuck, unreachable, or misbehaving box from the outside. Requires ' +
+      'an account API key (AGENTMETAL_API_KEY) and ownership; does not charge money. NOTE: the cloud provider ' +
+      'exposes no text serial-console / boot log, so this returns actions + console access + metrics, not a ' +
+      'plain-text log — open the VNC console URL for screen-level access.',
+    inputSchema: { id: z.string().describe('Server id to diagnose, e.g. "srv_abc123".') },
+  },
+  async (args) => {
+    try {
+      return ok(await client.diagnostics(args.id));
     } catch (err) {
       return fail(err);
     }

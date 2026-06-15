@@ -48,6 +48,32 @@ test('provision forwards ssh_key and via when given', async () => {
   });
 });
 
+test('provision forwards managed_key and surfaces the one-time private key', async () => {
+  const { fetch, calls } = recorder(() => json(201, { ...SERVER, ssh_private_key: 'PRIV' }));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch });
+  const r = await c.provision({ plan: 'nano', days: 1, managedKey: true });
+  assert.equal(r.ssh_private_key, 'PRIV');
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { plan: 'nano', days: 1, managed_key: true });
+});
+
+test('exec POSTs /exec with command + timeout and the account bearer, returning the result shape', async () => {
+  const { fetch, calls } = recorder(() => json(200, { exit_code: 0, stdout: 'ok', stderr: '', timed_out: false }));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch, apiKey: 'am_live_abc' });
+  const r = await c.exec('srv_1', 'whoami', 5);
+  assert.deepEqual(r, { exit_code: 0, stdout: 'ok', stderr: '', timed_out: false });
+  assert.equal(calls[0]!.url, 'https://api/v1/servers/srv_1/exec');
+  assert.equal(calls[0]!.init.method, 'POST');
+  assert.equal((calls[0]!.init.headers as Record<string, string>)['authorization'], 'Bearer am_live_abc');
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { command: 'whoami', timeout_seconds: 5 });
+});
+
+test('exec omits timeout_seconds when not given', async () => {
+  const { fetch, calls } = recorder(() => json(200, { exit_code: 0, stdout: '', stderr: '', timed_out: false }));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch, apiKey: 'am_live_abc' });
+  await c.exec('srv_1', 'uptime');
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { command: 'uptime' });
+});
+
 test('provision surfaces an unpayable 402 as PaymentRequiredError', async () => {
   const { fetch } = recorder(() => json(402, { accepts: [] }));
   const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch });
@@ -103,6 +129,47 @@ test('destroy sends the account bearer token', async () => {
   assert.equal(r.status, 'destroyed');
   assert.equal(calls[0]!.init.method, 'DELETE');
   assert.equal((calls[0]!.init.headers as Record<string, string>)['authorization'], 'Bearer am_live_abc');
+});
+
+test('getCatalog fetches /v1/catalog via the plain fetch (no payFetch)', async () => {
+  const catalog = {
+    plans: [{ id: 'nano', vcpu: 2, memory_gb: 2, disk_gb: 40, usd_per_day: '0.70', usd_per_month: 20 }],
+    locations: [{ code: 'ash', city: 'Ashburn', country: 'US' }],
+    bandwidth: { included_tb: 20, extra_usd_per_tb: '2.00' },
+    storage: { usd_per_gb_day: '0.01', min_gb: 10, max_gb: 1000 },
+  };
+  const pay = recorder(() => json(500, {}));
+  const plain = recorder(() => json(200, catalog));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: pay.fetch, fetch: plain.fetch });
+  const r = await c.getCatalog();
+  assert.equal(r.plans[0]!.id, 'nano');
+  assert.equal(r.locations[0]!.city, 'Ashburn');
+  assert.equal(pay.calls.length, 0);
+  assert.equal(plain.calls[0]!.url, 'https://api/v1/catalog');
+});
+
+test('reboot POSTs /reboot with the account bearer token', async () => {
+  const { fetch, calls } = recorder(() => json(200, { id: 'srv_1', status: 'rebooting' }));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch, apiKey: 'am_live_abc' });
+  const r = await c.reboot('srv_1');
+  assert.equal(r.status, 'rebooting');
+  assert.equal(calls[0]!.url, 'https://api/v1/servers/srv_1/reboot');
+  assert.equal(calls[0]!.init.method, 'POST');
+  assert.equal((calls[0]!.init.headers as Record<string, string>)['authorization'], 'Bearer am_live_abc');
+});
+
+test('diagnostics GETs /diagnostics and returns the full shape', async () => {
+  const diag = {
+    id: 'srv_1', status: 'running', ipv4: '1.2.3.4',
+    recent_actions: [{ command: 'reboot_server', status: 'success', progress: 100, error: null }],
+    console: { wss_url: 'wss://c', password: 'pw' }, metrics: { cpu: 0.42 },
+  };
+  const { fetch, calls } = recorder(() => json(200, diag));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch, apiKey: 'am_live_abc' });
+  const r = await c.diagnostics('srv_1');
+  assert.equal(r.console!.wss_url, 'wss://c');
+  assert.equal(r.metrics.cpu, 0.42);
+  assert.equal(calls[0]!.url, 'https://api/v1/servers/srv_1/diagnostics');
 });
 
 test('claim then verifyClaim round-trips email + code', async () => {

@@ -8,14 +8,26 @@ USDC payments over [x402 v2](https://x402.org); the rest are plain HTTP.
 
 ## Tools
 
-| Tool | Pays? | What it does |
-|---|---|---|
-| `provision_server` | ✅ USDC | Provision a VPS (`plan`, `days`, optional `ssh_key`/`via`) → id, IPv4, SSH |
-| `get_server` | — | Status, IPv4, expiry for a server id |
-| `extend_server` | ✅ USDC | Extend a lease by N days |
-| `destroy_server` | — | Destroy now (needs `AGENTMETAL_API_KEY`) |
-| `claim_account` | — | Email a one-time claim code |
-| `verify_claim` | — | Redeem the code for an account API key |
+11 tools. Paid tools sign a USDC/x402 payment; account-gated tools need
+`AGENTMETAL_API_KEY` (`am_live_…`) and ownership of the server.
+
+| Tool | Pays? | Account key? | What it does |
+|---|---|---|---|
+| `get_catalog` | — | — | List plans, locations, and add-on pricing (bandwidth, storage). The free discovery hook. |
+| `provision_server` | ✅ USDC | — | Provision a VPS (`plan`, `days`, optional `ssh_key`/`via`, `managed_key`) → id, IPv4, SSH. With `managed_key:true`, a server-side keypair is generated, authorized, and the private key returned **once** (stored only encrypted) to enable `exec_command`. |
+| `get_server` | — | — | Status, IPv4, expiry, bandwidth, storage for a server id |
+| `list_servers` | — | — | Fleet for a wallet/account |
+| `extend_server` | ✅ USDC | — | Extend a lease by N days |
+| `destroy_server` | — | ✅ | Destroy now |
+| `reboot_server` | — | ✅ | Soft-reboot an owned server |
+| `server_logs` | — | ✅ | Hypervisor-level diagnostics without logging in: status, recent provider actions, a VNC console URL, and live CPU/disk/net metrics (no text boot log exists provider-side) |
+| `exec_command` | — | ✅ | Run a shell command as **root** over SSH → exit_code/stdout/stderr. Requires a server provisioned with `managed_key:true`. Bounded: 1–120 s timeout, 256 KB output cap. |
+| `claim_account` | — | — | Email a one-time claim code (via AWS SES) |
+| `verify_claim` | — | — | Redeem the code for an account API key |
+
+**Add-ons** (currently API endpoints, not yet separate MCP tools): extra **storage**
+($0.01/GB/day, attached block volume) via `POST /v1/servers/{id}/storage` and extra
+**bandwidth** ($2/TB beyond the 20 TB included) via `POST /v1/servers/{id}/bandwidth`.
 
 ## Configuration (env)
 
@@ -25,7 +37,7 @@ USDC payments over [x402 v2](https://x402.org); the rest are plain HTTP.
 | `WALLET_PRIVATE_KEY` | — | `0x…` EVM key used to pay 402s. Omit and paid tools fail with a clear message. |
 | `AGENTMETAL_NETWORK` | `eip155:8453` | CAIP-2 network (Base mainnet) |
 | `AGENTMETAL_MAX_USDC` | `50` | Per-request spend cap, in USDC |
-| `AGENTMETAL_API_KEY` | — | `am_live_…` account key for destroy / account routes |
+| `AGENTMETAL_API_KEY` | — | `am_live_…` account key, required for `destroy_server` / `reboot_server` / `server_logs` / `exec_command` |
 
 ## Use with Claude Code
 
