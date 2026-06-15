@@ -1,18 +1,37 @@
 {
   "name": "@agentmetal/mcp",
-  "version": "0.2.0",
-  "description": "MCP server for AgentMetal — let an AI agent discover, pay for (USDC via x402 or card), provision, and manage Linux VPSes over HTTP 402. No signup.",
+  "version": "0.2.1",
+  "description": "MCP server for AgentMetal — an AI agent can discover, pay (USDC via x402 or card), provision, SSH into, and run commands on its own Linux VPSes over HTTP 402. No signup.",
   "license": "MIT",
   "type": "module",
   "mcpName": "dev.agentmetal/agentmetal",
   "bin": {
     "agentmetal-mcp": "src/index.ts"
   },
-  "files": ["src", "LICENSE", "README.md"],
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
   "engines": {
     "node": ">=24"
   },
-  "keywords": ["mcp", "modelcontextprotocol", "model-context-protocol", "mcp-server", "ai", "llm", "agent", "x402", "vps", "usdc", "ssh", "exec", "cloud-server", "agentmetal"],
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "model-context-protocol",
+    "mcp-server",
+    "ai",
+    "llm",
+    "agent",
+    "x402",
+    "vps",
+    "usdc",
+    "ssh",
+    "exec",
+    "cloud-server",
+    "agentmetal"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/agentmetal/mcp.git"

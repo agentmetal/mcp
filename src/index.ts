@@ -64,7 +64,7 @@ const fail = (err: unknown) => ({
   isError: true,
 });
 
-const server = new McpServer({ name: 'agentmetal', version: '0.2.0' });
+const server = new McpServer({ name: 'agentmetal', version: '0.2.1' });
 
 server.registerTool(
   'provision_server',
