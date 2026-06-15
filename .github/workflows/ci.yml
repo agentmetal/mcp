@@ -1,0 +1,20 @@
+# CI for the PUBLIC mirror repo (agentmetal/mcp). This lives under packages/mcp/ so the
+# publish script (scripts/publish-public-repos.sh) rsyncs it to the mirror's root .github/,
+# where it runs on every push — giving Glama a green CI signal. It does NOT run in the private
+# monorepo (GitHub Actions only executes workflows from the repo root .github/).
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test

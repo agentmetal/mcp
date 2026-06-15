@@ -6,6 +6,7 @@ server (VPS / cloud instance) with no human signup. Paid tools sign USDC payment
 [x402 v2](https://x402.org) (or pay by card); the rest are plain HTTP.
 
 [![agentmetal/mcp MCP server](https://glama.ai/mcp/servers/agentmetal/mcp/badges/score.svg)](https://glama.ai/mcp/servers/agentmetal/mcp)
+[![CI](https://github.com/agentmetal/mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/agentmetal/mcp/actions/workflows/ci.yml)
 
 ## Tools
 
