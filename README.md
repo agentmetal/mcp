@@ -7,6 +7,7 @@ server (VPS / cloud instance) with no human signup. Paid tools sign USDC payment
 
 [![agentmetal/mcp MCP server](https://glama.ai/mcp/servers/agentmetal/mcp/badges/score.svg)](https://glama.ai/mcp/servers/agentmetal/mcp)
 [![CI](https://github.com/agentmetal/mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/agentmetal/mcp/actions/workflows/ci.yml)
+[![smithery badge](https://smithery.ai/badge/luisalfonsocosioizcapa/agentmetal)](https://smithery.ai/servers/luisalfonsocosioizcapa/agentmetal)
 
 ## Tools
 
