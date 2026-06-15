@@ -64,18 +64,25 @@ const fail = (err: unknown) => ({
   isError: true,
 });
 
-const server = new McpServer({ name: 'agentmetal', version: '0.1.0' });
+const server = new McpServer({ name: 'agentmetal', version: '0.1.2' });
 
 server.registerTool(
   'provision_server',
   {
     title: 'Provision a server',
-    description: 'Provision a VPS, paying with USDC via x402. Returns the server id, IPv4, and SSH target. Sub-60s.',
+    description:
+      'Provision a brand-new Linux VPS and pay for it in a single call. SPENDS REAL USDC — ' +
+      'the payment is signed on-chain via x402 (Base) up to this MCP server\'s per-call spend cap; ' +
+      'it is a real charge, not a quote or a dry run. Returns the server id (srv_…), public IPv4, and ' +
+      'an `ssh root@<ip>` target, usually reachable in under 60 seconds. Use when an agent needs its own ' +
+      'compute to build, run, or host something with no human signup. Pass `ssh_key` to get inbound SSH; ' +
+      'omit it and the box boots with no way to log in. The lease lasts `days` days, after which the ' +
+      'server is automatically destroyed unless you extend_server first.',
     inputSchema: {
-      plan: z.enum(['nano', 'small', 'medium']).describe('Server size'),
-      days: z.number().int().min(1).max(30).describe('Lease length in days (1–30)'),
-      ssh_key: z.string().optional().describe('SSH public key to authorize on the box'),
-      via: z.string().optional().describe('Attribution tag, e.g. the calling skill name'),
+      plan: z.enum(['nano', 'small', 'medium']).describe('Server size / price tier: "nano" (smallest, cheapest), "small", or "medium". Choose the smallest that fits the workload.'),
+      days: z.number().int().min(1).max(30).describe('Lease length in whole days (1–30). The server auto-destroys at expiry unless extended; you pay up front for the whole lease.'),
+      ssh_key: z.string().optional().describe('Optional single-line OpenSSH public key (e.g. "ssh-ed25519 AAAA…") authorized for root SSH. Omit and the box has NO inbound SSH access.'),
+      via: z.string().optional().describe('Optional attribution tag (e.g. the calling skill name). Analytics only; does not affect provisioning.'),
     },
   },
   async (args) => {
@@ -94,8 +101,11 @@ server.registerTool(
   'get_server',
   {
     title: 'Get server status',
-    description: "Fetch a server's current status, IPv4, and expiry.",
-    inputSchema: { id: z.string().describe('Server id, e.g. srv_…') },
+    description:
+      "Look up one server's live status (provisioning | running | suspended | expired | destroyed), " +
+      'public IPv4, lease expiry (unix seconds), and bandwidth usage. Read-only — never charges money or ' +
+      'changes the server. Use to confirm a box is up and reachable, or to see how long it has before auto-destroy.',
+    inputSchema: { id: z.string().describe('Server id returned by provision_server, e.g. "srv_abc123".') },
   },
   async (args) => {
     try {
@@ -110,9 +120,13 @@ server.registerTool(
   'list_servers',
   {
     title: 'List your servers',
-    description: 'List the fleet for a wallet (defaults to this server\'s configured wallet) or, with an account key, the account\'s servers.',
+    description:
+      'List every server (the fleet) for a payer wallet, or for the whole account when an account API key ' +
+      'is configured. Read-only — never charges or changes anything. Defaults to the wallet configured on this ' +
+      'MCP server; pass `wallet` to list a different payer. Use to enumerate active boxes before calling ' +
+      'extend_server or destroy_server.',
     inputSchema: {
-      wallet: z.string().optional().describe('Payer wallet to list; defaults to the configured wallet'),
+      wallet: z.string().optional().describe('Optional payer wallet address (0x…) whose servers to list. Defaults to this MCP server\'s configured wallet.'),
     },
   },
   async (args) => {
@@ -129,10 +143,14 @@ server.registerTool(
   'extend_server',
   {
     title: 'Extend a server lease',
-    description: 'Extend a server lease by N days, paying with USDC via x402.',
+    description:
+      'Extend an existing server\'s lease so it is not auto-destroyed at expiry. SPENDS REAL USDC — signed ' +
+      'on-chain via x402 (Base) up to the per-call spend cap; a real charge. Adds `days` days to the current ' +
+      'expiry and returns the new expiry (unix seconds). Use before a lease runs out to keep a box alive; ' +
+      'check the current expiry first with get_server.',
     inputSchema: {
-      id: z.string().describe('Server id'),
-      days: z.number().int().min(1).max(30).describe('Days to add (1–30)'),
+      id: z.string().describe('Server id to extend, e.g. "srv_abc123".'),
+      days: z.number().int().min(1).max(30).describe('Whole days to add to the current lease (1–30).'),
     },
   },
   async (args) => {
@@ -148,8 +166,12 @@ server.registerTool(
   'destroy_server',
   {
     title: 'Destroy a server',
-    description: 'Destroy a server now. Requires an account API key (AGENTMETAL_API_KEY).',
-    inputSchema: { id: z.string().describe('Server id') },
+    description:
+      'Permanently destroy a server RIGHT NOW, before its lease expires. IRREVERSIBLE — the VM and all its ' +
+      'data are deleted and remaining lease time is NOT refunded. Requires an account API key ' +
+      '(AGENTMETAL_API_KEY); without one this returns an auth error. Use to free quota or stop holding an ' +
+      'unneeded box. To let a box expire naturally instead, simply do not extend it.',
+    inputSchema: { id: z.string().describe('Server id to destroy, e.g. "srv_abc123". This action cannot be undone.') },
   },
   async (args) => {
     try {
@@ -164,8 +186,12 @@ server.registerTool(
   'claim_account',
   {
     title: 'Claim an account (request code)',
-    description: 'Start claiming an account: AgentMetal emails a one-time code to verify with verify_claim.',
-    inputSchema: { email: z.string().email().describe('Email to receive the code') },
+    description:
+      'Begin claiming an AgentMetal account by email. Sends a one-time 6-digit code to the address; redeem ' +
+      'it with verify_claim to get an account API key. Side effect: sends one email. Does not charge. ' +
+      'Accounts are OPTIONAL — they add fleet management under one key, monthly card billing, and higher ' +
+      'quotas, but are not required to provision or pay. Call verify_claim next with the emailed code.',
+    inputSchema: { email: z.string().email().describe('Email address that should receive the one-time 6-digit claim code.') },
   },
   async (args) => {
     try {
@@ -180,11 +206,15 @@ server.registerTool(
   'verify_claim',
   {
     title: 'Verify an account claim',
-    description: 'Complete a claim with the emailed code; returns an account API key. Optionally link a wallet.',
+    description:
+      'Complete an account claim using the 6-digit code emailed by claim_account. Returns a long-lived ' +
+      'account API key (am_live_…) — store it securely; it authorizes destroy_server and account-scoped ' +
+      'calls. Optionally link a wallet so its existing servers attach to the account. The code expires ' +
+      '10 minutes after claim_account and is invalidated after 5 wrong attempts (re-run claim_account to retry).',
     inputSchema: {
-      email: z.string().email(),
-      code: z.string().describe('The 6-digit code from the email'),
-      wallet: z.string().optional().describe('Wallet address to link to the account'),
+      email: z.string().email().describe('The same email address you passed to claim_account.'),
+      code: z.string().describe('The 6-digit code from the claim email.'),
+      wallet: z.string().optional().describe('Optional wallet address (0x…) to link to the account, attaching its existing servers.'),
     },
   },
   async (args) => {
