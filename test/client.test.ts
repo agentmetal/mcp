@@ -182,3 +182,31 @@ test('claim then verifyClaim round-trips email + code', async () => {
   assert.equal(v.api_key, 'am_live_xyz');
   assert.deepEqual(JSON.parse(calls[1]!.init.body as string), { email: 'a@b.co', code: '123456' });
 });
+
+test('provision forwards os when given', async () => {
+  const { fetch, calls } = recorder(() => json(201, SERVER));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch });
+  await c.provision({ plan: 'nano', days: 1, os: 'debian-12' });
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { plan: 'nano', days: 1, os: 'debian-12' });
+});
+
+test('getFirewall GETs the firewall with the account bearer', async () => {
+  const { fetch, calls } = recorder(() => json(200, { id: 'srv_1', managed: true, rules: [{ protocol: 'tcp', port: '22', source_ips: ['0.0.0.0/0'] }] }));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch, fetch, apiKey: 'am_live_abc' });
+  const r = await c.getFirewall('srv_1');
+  assert.equal(calls[0]!.url, 'https://api/v1/servers/srv_1/firewall');
+  assert.equal((calls[0]!.init.headers as Record<string, string>).authorization, 'Bearer am_live_abc');
+  assert.equal(r.managed, true);
+});
+
+test('manageFirewall open POSTs the rule; close DELETEs; force is forwarded', async () => {
+  const { fetch, calls } = recorder(() => json(200, { id: 'srv_1', managed: true, rules: [] }));
+  const c = new AgentMetalClient({ baseUrl: 'https://api', payFetch: fetch, fetch, apiKey: 'am_live_abc' });
+  await c.manageFirewall({ id: 'srv_1', action: 'open', protocol: 'tcp', port: '443' });
+  assert.equal(calls[0]!.url, 'https://api/v1/servers/srv_1/firewall/rules');
+  assert.equal(calls[0]!.init.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[0]!.init.body as string), { protocol: 'tcp', port: '443' });
+  await c.manageFirewall({ id: 'srv_1', action: 'close', protocol: 'tcp', port: '22', force: true });
+  assert.equal(calls[1]!.init.method, 'DELETE');
+  assert.deepEqual(JSON.parse(calls[1]!.init.body as string), { protocol: 'tcp', port: '22', force: true });
+});

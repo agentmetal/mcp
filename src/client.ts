@@ -61,12 +61,42 @@ export interface Diagnostics {
 export interface ProvisionInput {
   plan: 'nano' | 'small' | 'medium';
   days: number;
+  /** OS image, e.g. "ubuntu-24.04" (default) or "debian-12". See get_catalog for the list. */
+  os?: string;
   /** SSH public key to authorize on the box. */
   sshKey?: string;
   /** Generate a server-side keypair, authorize it, and return the private key once (enables exec). */
   managedKey?: boolean;
   /** Free-form attribution tag (e.g. the calling skill/agent). */
   via?: string;
+}
+
+/** A box's inbound firewall rule. */
+export interface FirewallRule {
+  protocol: string;
+  port?: string;
+  source_ips: string[];
+  description?: string;
+}
+
+/** The box's edge-firewall view: rules when edge-managed, or a note when it isn't. */
+export interface FirewallView {
+  id: string;
+  managed: boolean;
+  rules?: FirewallRule[];
+  note?: string;
+  opened?: FirewallRule;
+  closed?: FirewallRule;
+}
+
+export interface ManageFirewallInput {
+  id: string;
+  action: 'open' | 'close';
+  protocol: string;
+  port?: string;
+  sourceIps?: string[];
+  description?: string;
+  force?: boolean;
 }
 
 export class PaymentRequiredError extends Error {
@@ -104,6 +134,7 @@ export class AgentMetalClient {
   /** Provision a server. Pays via x402 when the API answers 402. */
   async provision(input: ProvisionInput): Promise<Server> {
     const body: Record<string, unknown> = { plan: input.plan, days: input.days };
+    if (input.os) body.os = input.os;
     if (input.sshKey) body.ssh_key = input.sshKey;
     if (input.managedKey) body.managed_key = true;
     if (input.via) body.via = input.via;
@@ -162,6 +193,29 @@ export class AgentMetalClient {
       headers: this.#headers(),
     });
     return this.#parse<Diagnostics>(res);
+  }
+
+  /** List a server's edge-firewall rules. Requires an account API key + ownership (off-box). */
+  async getFirewall(id: string): Promise<FirewallView> {
+    const res = await this.#fetch(`${this.#baseUrl}/v1/servers/${encodeURIComponent(id)}/firewall`, {
+      headers: this.#headers(),
+    });
+    return this.#parse<FirewallView>(res);
+  }
+
+  /** Open or close a port on a server's edge firewall. Requires an account API key + ownership. */
+  async manageFirewall(input: ManageFirewallInput): Promise<FirewallView> {
+    const body: Record<string, unknown> = { protocol: input.protocol };
+    if (input.port !== undefined) body.port = input.port;
+    if (input.sourceIps) body.source_ips = input.sourceIps;
+    if (input.description) body.description = input.description;
+    if (input.force) body.force = true;
+    const res = await this.#fetch(`${this.#baseUrl}/v1/servers/${encodeURIComponent(input.id)}/firewall/rules`, {
+      method: input.action === 'open' ? 'POST' : 'DELETE',
+      headers: this.#headers(),
+      body: JSON.stringify(body),
+    });
+    return this.#parse<FirewallView>(res);
   }
 
   /** Fetch a server's current status. */

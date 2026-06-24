@@ -64,7 +64,7 @@ const fail = (err: unknown) => ({
   isError: true,
 });
 
-const server = new McpServer({ name: 'agentmetal', version: '0.2.1' });
+const server = new McpServer({ name: 'agentmetal', version: '0.3.0' });
 
 server.registerTool(
   'provision_server',
@@ -81,6 +81,7 @@ server.registerTool(
     inputSchema: {
       plan: z.enum(['nano', 'small', 'medium']).describe('Server size / price tier: "nano" (smallest, cheapest), "small", or "medium". Choose the smallest that fits the workload.'),
       days: z.number().int().min(1).max(30).describe('Lease length in whole days (1–30). The server auto-destroys at expiry unless extended; you pay up front for the whole lease.'),
+      os: z.string().optional().describe('Optional OS image, e.g. "ubuntu-24.04" (default), "debian-12", "fedora-44", "rocky-9". Call get_catalog for the full list.'),
       ssh_key: z.string().optional().describe('Optional single-line OpenSSH public key (e.g. "ssh-ed25519 AAAA…") authorized for root SSH. Omit and the box has NO inbound SSH access.'),
       managed_key: z.boolean().optional().describe('Generate a server-side SSH keypair, authorize it on the box, and return the private key ONCE; enables exec_command. Stored only encrypted server-side.'),
       via: z.string().optional().describe('Optional attribution tag (e.g. the calling skill name). Analytics only; does not affect provisioning.'),
@@ -89,6 +90,7 @@ server.registerTool(
   async (args) => {
     try {
       const input: Parameters<AgentMetalClient['provision']>[0] = { plan: args.plan, days: args.days };
+      if (args.os) input.os = args.os;
       if (args.ssh_key) input.sshKey = args.ssh_key;
       if (args.managed_key) input.managedKey = true;
       if (args.via) input.via = args.via;
@@ -266,6 +268,59 @@ server.registerTool(
   async (args) => {
     try {
       return ok(await client.diagnostics(args.id));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  'get_firewall',
+  {
+    title: 'List a server firewall',
+    description:
+      "List a server's inbound firewall rules (the edge Hetzner Cloud Firewall). New boxes boot locked-down " +
+      '(SSH + ICMP only); other ports are opened with manage_firewall. Read-only, no charge. `managed:false` ' +
+      'with a note means the box has no edge firewall (legacy box; nothing to manage here). Requires an ' +
+      'account API key (AGENTMETAL_API_KEY) and ownership.',
+    inputSchema: { id: z.string().describe('Server id whose firewall to list, e.g. "srv_abc123".') },
+  },
+  async (args) => {
+    try {
+      return ok(await client.getFirewall(args.id));
+    } catch (err) {
+      return fail(err);
+    }
+  },
+);
+
+server.registerTool(
+  'manage_firewall',
+  {
+    title: 'Open or close a firewall port',
+    description:
+      "Open or close a single port on a server's edge firewall so it can (or can't) serve traffic. Does not " +
+      'charge money. Requires an account API key (AGENTMETAL_API_KEY) and ownership of the server. The last ' +
+      'SSH (port 22) rule cannot be removed unless force:true (it would lock you out). Use action "open" to ' +
+      'expose e.g. 443 for a web server, "close" to remove a rule.',
+    inputSchema: {
+      id: z.string().describe('Server id to manage, e.g. "srv_abc123".'),
+      action: z.enum(['open', 'close']).describe('"open" adds an allow rule; "close" removes the matching rule.'),
+      protocol: z.enum(['tcp', 'udp', 'icmp', 'esp', 'gre']).describe('Rule protocol. Most web/app ports are tcp.'),
+      port: z.string().optional().describe('Port or range for tcp/udp, e.g. "443" or "8000-9000". Omit for icmp/esp/gre.'),
+      source_ips: z.array(z.string()).optional().describe('Allowed source CIDRs (e.g. ["0.0.0.0/0","::/0"]). Defaults to the whole internet.'),
+      description: z.string().optional().describe('Optional human label for the rule.'),
+      force: z.boolean().optional().describe('Required (true) to remove the last SSH (22) rule; guards against locking yourself out.'),
+    },
+  },
+  async (args) => {
+    try {
+      const input: Parameters<AgentMetalClient['manageFirewall']>[0] = { id: args.id, action: args.action, protocol: args.protocol };
+      if (args.port !== undefined) input.port = args.port;
+      if (args.source_ips) input.sourceIps = args.source_ips;
+      if (args.description) input.description = args.description;
+      if (args.force) input.force = true;
+      return ok(await client.manageFirewall(input));
     } catch (err) {
       return fail(err);
     }
