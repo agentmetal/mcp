@@ -354,18 +354,25 @@ server.registerTool(
     description:
       'Complete an account claim using the 6-digit code emailed by claim_account. Returns a long-lived ' +
       'account API key (am_live_…) — store it securely; it authorizes destroy_server and account-scoped ' +
-      'calls. Optionally link a wallet so its existing servers attach to the account. The code expires ' +
-      '10 minutes after claim_account and is invalidated after 5 wrong attempts (re-run claim_account to retry).',
+      'calls. Optionally link a wallet so its existing servers attach to the account — this REQUIRES ' +
+      'wallet_signature: sign the exact message "AgentMetal: link wallet <wallet> to <email>" with the ' +
+      'wallet and pass the 0x signature (without it the API rejects the wallet with the message to sign). ' +
+      'The code expires 10 minutes after claim_account and is invalidated after 5 wrong attempts.',
     inputSchema: {
       email: z.string().email().describe('The same email address you passed to claim_account.'),
       code: z.string().describe('The 6-digit code from the claim email.'),
-      wallet: z.string().optional().describe('Optional wallet address (0x…) to link to the account, attaching its existing servers.'),
+      wallet: z.string().optional().describe('Optional wallet address (0x…) to link to the account, attaching its existing servers. Requires wallet_signature.'),
+      wallet_signature: z
+        .string()
+        .optional()
+        .describe('Required when `wallet` is set: the 0x signature of "AgentMetal: link wallet <wallet> to <email>" signed by that wallet, proving control of it.'),
     },
   },
   async (args) => {
     try {
       const input: Parameters<AgentMetalClient['verifyClaim']>[0] = { email: args.email, code: args.code };
       if (args.wallet) input.wallet = args.wallet;
+      if (args.wallet_signature) input.wallet_signature = args.wallet_signature;
       return ok(await client.verifyClaim(input));
     } catch (err) {
       return fail(err);

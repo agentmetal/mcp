@@ -23,8 +23,10 @@ export interface Server {
   id: string;
   status: string;
   plan: string;
-  ipv4: string | null;
-  ssh: string | null;
+  // Network details are present only for the authenticated owner; anonymous lookups (by ?wallet=,
+  // or an unauthenticated GET of someone else's box) omit them entirely — hence optional, not just nullable.
+  ipv4?: string | null;
+  ssh?: string | null;
   expires_at: string;
   renew: string;
   payment?: { amount_atomic: string; tx_hash?: string };
@@ -255,8 +257,9 @@ export class AgentMetalClient {
     return this.#parse<{ sent: boolean }>(res);
   }
 
-  /** Complete an email claim, receiving an account API key. Optionally link a wallet. */
-  async verifyClaim(input: { email: string; code: string; wallet?: string }): Promise<{ account: string; api_key: string; servers_claimed: number }> {
+  /** Complete an email claim, receiving an account API key. Optionally link a wallet — which the API
+   *  requires `wallet_signature` to prove control of (see verify_claim tool for the message to sign). */
+  async verifyClaim(input: { email: string; code: string; wallet?: string; wallet_signature?: string }): Promise<{ account: string; api_key: string; servers_claimed: number }> {
     const res = await this.#fetch(`${this.#baseUrl}/v1/claim/verify`, {
       method: 'POST',
       headers: this.#headers(),

@@ -11,7 +11,7 @@ server (VPS / cloud instance) with no human signup. Paid tools sign USDC payment
 
 ## Tools
 
-11 tools. Paid tools sign a USDC/x402 payment; account-gated tools need
+13 tools. Paid tools sign a USDC/x402 payment; account-gated tools need
 `AGENTMETAL_API_KEY` (`am_live_…`) and ownership of the server.
 
 | Tool | Pays? | Account key? | What it does |
@@ -25,8 +25,10 @@ server (VPS / cloud instance) with no human signup. Paid tools sign USDC payment
 | `reboot_server` | — | ✅ | Soft-reboot an owned server |
 | `server_logs` | — | ✅ | Hypervisor-level diagnostics without logging in: status, recent provider actions, a VNC console URL, and live CPU/disk/net metrics (no text boot log exists provider-side) |
 | `exec_command` | — | ✅ | Run a shell command as **root** over SSH → exit_code/stdout/stderr. Requires a server provisioned with `managed_key:true`. Bounded: 1–120 s timeout, 256 KB output cap. |
+| `get_firewall` | — | — | Read a box's edge-firewall rules. Callable from the box itself (source-IP identity) or with an account key. |
+| `manage_firewall` | — | — | Open/close inbound ports on a box's edge firewall (protocol/port/source_ips). From the box itself or with an account key; SSH-lockout guarded. |
 | `claim_account` | — | — | Email a one-time claim code (via AWS SES) |
-| `verify_claim` | — | — | Redeem the code for an account API key |
+| `verify_claim` | — | — | Redeem the code for an account API key. Link a wallet by also passing `wallet` + `wallet_signature`. |
 
 **Add-ons** (currently API endpoints, not yet separate MCP tools): extra **storage**
 ($0.01/GB/day, attached block volume) via `POST /v1/servers/{id}/storage` and extra
