@@ -1,6 +1,6 @@
 {
   "name": "@agentmetal/mcp",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "MCP server for AgentMetal — an AI agent can discover, pay (USDC via x402 or card), provision, SSH into, and run commands on its own Linux VPSes over HTTP 402. No signup.",
   "license": "MIT",
   "type": "module",
@@ -52,9 +52,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@x402/evm": "^2.16.0",
-    "@x402/fetch": "^2.16.0",
-    "viem": "^2.53.1",
+    "@x402/evm": "^2.17.0",
+    "@x402/fetch": "^2.17.0",
+    "viem": "^2.54.1",
     "zod": "^4.4.3"
   }
 }
