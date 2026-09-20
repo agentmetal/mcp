@@ -66,7 +66,7 @@ const fail = (err: unknown) => ({
 
 // Keep in lockstep with package.json / server.json / profile.ts — enforced by the version guard in
 // scripts/gen-agent-surfaces.ts (this literal is one of the sources it cross-checks).
-const server = new McpServer({ name: 'agentmetal', version: '0.3.2' });
+const server = new McpServer({ name: 'agentmetal', version: '0.3.3' });
 
 server.registerTool(
   'provision_server',

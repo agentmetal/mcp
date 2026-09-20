@@ -1,0 +1,11 @@
+# Minimal image for the live-payment canary (deploy/systemd/agentmetal-canary.*).
+# The box host has no node, and the API image lacks the CLIENT-side x402 deps (@x402/fetch/@x402/evm),
+# so the canary runs in this tiny image. Deps are installed --no-save (never touch the published
+# @agentmetal/mcp package.json). The repo is bind-mounted read-only at /repo at run time (CANARY_ROOT)
+# so the canary reads deploy/.env + deploy/test-wallet.key without baking secrets into the image.
+FROM node:24-slim
+WORKDIR /app
+RUN npm install --no-save --omit=dev @x402/fetch@^2.17.0 @x402/evm@^2.17.0 viem@^2.54.1
+COPY canary.mjs ./canary.mjs
+ENV CANARY_ROOT=/repo
+CMD ["node", "canary.mjs"]
