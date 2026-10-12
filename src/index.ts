@@ -66,7 +66,7 @@ const fail = (err: unknown) => ({
 
 // Keep in lockstep with package.json / server.json / profile.ts — enforced by the version guard in
 // scripts/gen-agent-surfaces.ts (this literal is one of the sources it cross-checks).
-const server = new McpServer({ name: 'agentmetal', version: '0.3.3' });
+const server = new McpServer({ name: 'agentmetal', version: '0.3.4' });
 
 server.registerTool(
   'provision_server',
@@ -76,7 +76,7 @@ server.registerTool(
       'Provision a brand-new Linux VPS and pay for it in a single call. SPENDS REAL USDC — ' +
       'the payment is signed on-chain via x402 (Base) up to this MCP server\'s per-call spend cap; ' +
       'it is a real charge, not a quote or a dry run. Returns the server id (srv_…), public IPv4, and ' +
-      'an `ssh root@<ip>` target, usually reachable in under 60 seconds. Use when an agent needs its own ' +
+      'an SSH target (`ssh root@<ip>`, or `ssh -p <port> root@<ip>` in cdmx-1), usually reachable in under 60 seconds. Use when an agent needs its own ' +
       'compute to build, run, or host something with no human signup. Pass `ssh_key` to get inbound SSH; ' +
       'omit it and the box boots with no way to log in. The lease lasts `days` days, after which the ' +
       'server is automatically destroyed unless you extend_server first.',
@@ -84,6 +84,7 @@ server.registerTool(
       plan: z.enum(['nano', 'small', 'medium']).describe('Server size / price tier: "nano" (smallest, cheapest), "small", or "medium". Choose the smallest that fits the workload.'),
       days: z.number().int().min(1).max(30).describe('Lease length in whole days (1–30). The server auto-destroys at expiry unless extended; you pay up front for the whole lease.'),
       os: z.string().optional().describe('Optional OS image, e.g. "ubuntu-24.04" (default), "debian-12", "fedora-44", "rocky-9". Call get_catalog for the full list.'),
+      location: z.string().optional().describe('Optional zone. Omit for the default (Hetzner US, with fallback). "cdmx-1" is our own bare metal in Mexico City: Ubuntu 22.04/24.04 only, SSH on a per-box port of a shared IP, no storage or firewall API yet. Call get_catalog for zones.'),
       ssh_key: z.string().optional().describe('Optional single-line OpenSSH public key (e.g. "ssh-ed25519 AAAA…") authorized for root SSH. Omit and the box has NO inbound SSH access.'),
       managed_key: z.boolean().optional().describe('Generate a server-side SSH keypair, authorize it on the box, and return the private key ONCE; enables exec_command. Stored only encrypted server-side.'),
       via: z.string().optional().describe('Optional attribution tag (e.g. the calling skill name). Analytics only; does not affect provisioning.'),
@@ -93,6 +94,7 @@ server.registerTool(
     try {
       const input: Parameters<AgentMetalClient['provision']>[0] = { plan: args.plan, days: args.days };
       if (args.os) input.os = args.os;
+      if (args.location) input.location = args.location;
       if (args.ssh_key) input.sshKey = args.ssh_key;
       if (args.managed_key) input.managedKey = true;
       if (args.via) input.via = args.via;

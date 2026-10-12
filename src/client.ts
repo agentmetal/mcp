@@ -27,6 +27,8 @@ export interface Server {
   // or an unauthenticated GET of someone else's box) omit them entirely — hence optional, not just nullable.
   ipv4?: string | null;
   ssh?: string | null;
+  /** 22, or the box's own port on a shared IP (cdmx-1). */
+  ssh_port?: number;
   expires_at: string;
   renew: string;
   payment?: { amount_atomic: string; tx_hash?: string };
@@ -65,6 +67,8 @@ export interface ProvisionInput {
   days: number;
   /** OS image, e.g. "ubuntu-24.04" (default) or "debian-12". See get_catalog for the list. */
   os?: string;
+  /** Zone, e.g. "cdmx-1" (our bare metal). Omit for the default Hetzner order. */
+  location?: string;
   /** SSH public key to authorize on the box. */
   sshKey?: string;
   /** Generate a server-side keypair, authorize it, and return the private key once (enables exec). */
@@ -137,6 +141,7 @@ export class AgentMetalClient {
   async provision(input: ProvisionInput): Promise<Server> {
     const body: Record<string, unknown> = { plan: input.plan, days: input.days };
     if (input.os) body.os = input.os;
+    if (input.location) body.location = input.location;
     if (input.sshKey) body.ssh_key = input.sshKey;
     if (input.managedKey) body.managed_key = true;
     if (input.via) body.via = input.via;
